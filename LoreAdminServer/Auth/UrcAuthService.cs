@@ -81,14 +81,26 @@ namespace LoreBackend.Auth
         public override async Task<ExchangeExternalTokenForUserTokenResponse> ExchangeExternalTokenForUserToken(ExchangeExternalTokenForUserTokenRequest request, ServerCallContext context)
         {
             ExchangeExternalTokenForUserTokenResponse response = new ExchangeExternalTokenForUserTokenResponse();
-            string? sub = await _tokens.ValidateAsync(request.ExternalToken);
-            if (sub != null)
+            User? user;
+
+            // Lore can send arbitrary token type based on user input
+            string tokenType = (request.TokenType ?? "").ToLowerInvariant();
+            if (tokenType == "api-key")
             {
-                User? user = _store.GetUser(sub);
-                if (user != null)
-                {
-                    response.UserToken = MakeUserToken(user);
-                }
+                // Exchange "api-key" token (issued by our server) for regular session token.
+                user = _store.GetUserByApiKey(request.ExternalToken);
+            }
+            else
+            {
+                // Fall back to treating the external token as one of our own JWTs.
+                string? sub = await _tokens.ValidateAsync(request.ExternalToken);
+                user = sub == null ? null : _store.GetUser(sub);
+            }
+
+            _logger.LogInformation("ExchangeExternalToken type={Type} user={User}", request.TokenType, user?.Username ?? "(invalid)");
+            if (user != null)
+            {
+                response.UserToken = MakeUserToken(user);
             }
 
             return response;
@@ -96,7 +108,15 @@ namespace LoreBackend.Auth
 
         public override Task<ExchangeAPIKeyForUserTokenResponse> ExchangeAPIKeyForUserToken(ExchangeAPIKeyForUserTokenRequest request, ServerCallContext context)
         {
-            return Task.FromResult(new ExchangeAPIKeyForUserTokenResponse());
+            ExchangeAPIKeyForUserTokenResponse response = new ExchangeAPIKeyForUserTokenResponse();
+            User? user = _store.GetUserByApiKey(request.ApiKey);
+            _logger.LogInformation("ExchangeAPIKeyForUserToken user={User}", user?.Username ?? "(invalid key)");
+            if (user != null)
+            {
+                response.UserToken = MakeUserToken(user);
+            }
+
+            return Task.FromResult(response);
         }
 
         public override async Task<ExchangeUserTokenForMultiresourceTokenResponse> ExchangeUserTokenForMultiresourceToken(ExchangeUserTokenForMultiresourceTokenRequest request, ServerCallContext context)

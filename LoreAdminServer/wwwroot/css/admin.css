@@ -98,6 +98,9 @@ input:focus, select:focus { outline: 2px solid rgba(47, 111, 237, .25); outline-
 .login-card .btn { width: 100%; }
 .alert { padding: 9px 12px; border-radius: var(--radius-sm); font-size: 13px; }
 .alert.error { background: #fdecec; color: var(--danger); border: 1px solid #f6c9c9; }
+.alert.ok { background: #e9f7ef; color: #1a7f37; border: 1px solid #b7e0c4; }
+.token-banner { margin-bottom: 20px; display: flex; flex-direction: column; gap: 8px; }
+.token { font-family: var(--mono); font-size: 13px; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 9px 11px; word-break: break-all; user-select: all; }
 .note { color: var(--muted); font-size: 12.5px; margin: 0; }
 .center { text-align: center; }
 .center.success h1 { color: #1a7f37; }

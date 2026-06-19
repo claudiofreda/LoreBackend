@@ -13,29 +13,51 @@
 
 <main class="container">
 
+	@if (Model.NewApiKey != null)
+	{
+		<div class="alert ok token-banner">
+			<div>New API token (copy it now, it will not be shown again):</div>
+			<code class="token">@Model.NewApiKey</code>
+		</div>
+	}
+
 	<section class="card">
 		<div class="card-head"><h2>Organizations</h2></div>
 		<div class="card-body">
 			<div class="table-wrap">
 				<table class="table">
-					<thead><tr><th>ID</th><th>Slug</th><th>Name</th></tr></thead>
+					<thead>
+					<tr>
+						<th>ID</th>
+						<th>Slug</th>
+						<th>Name</th>
+					</tr>
+					</thead>
 					<tbody>
-						@if (Model.Orgs.Count == 0)
-						{
-							<tr class="empty"><td colspan="3">No organizations yet.</td></tr>
-						}
-						@foreach (var org in Model.Orgs)
-						{
-							<tr><td class="muted">@org.Id</td><td><b>@org.Slug</b></td><td>@org.Name</td></tr>
-						}
+					@if (Model.Orgs.Count == 0)
+					{
+						<tr class="empty">
+							<td colspan="3">No organizations yet.</td>
+						</tr>
+					}
+					@foreach (var org in Model.Orgs)
+					{
+						<tr>
+							<td class="muted">@org.Id</td>
+							<td><b>@org.Slug</b></td>
+							<td>@org.Name</td>
+						</tr>
+					}
 					</tbody>
 				</table>
 			</div>
 		</div>
 		<form class="card-foot form-grid" method="post" asp-page-handler="Org">
-			<div class="field"><label>Slug</label><input name="slug" placeholder="acme" required /></div>
-			<div class="field"><label>Display name</label><input name="name" placeholder="Acme Inc." /></div>
-			<div class="field-actions"><button class="btn" type="submit">Create organization</button></div>
+			<div class="field"><label>Slug</label><input name="slug" placeholder="acme" required/></div>
+			<div class="field"><label>Display name</label><input name="name" placeholder="Acme Inc."/></div>
+			<div class="field-actions">
+				<button class="btn" type="submit">Create organization</button>
+			</div>
 		</form>
 	</section>
 
@@ -45,20 +67,36 @@
 			<p class="hint">Created from the lore CLI (<code>repository create lore://host/&lt;org&gt;/&lt;repo&gt;</code>) and listed here automatically; the creator becomes the owner.</p>
 			<div class="table-wrap">
 				<table class="table">
-					<thead><tr><th>Name</th><th>Organization</th><th>Lore ID</th></tr></thead>
+					<thead>
+					<tr>
+						<th>Name</th>
+						<th>Organization</th>
+						<th>Lore ID</th>
+					</tr>
+					</thead>
 					<tbody>
-						@if (Model.Repos.Count == 0)
-						{
-							<tr class="empty"><td colspan="3">No repositories yet.</td></tr>
-						}
-						@foreach (var repo in Model.Repos)
-						{
-							<tr>
-								<td><b>@repo.Name</b></td>
-								<td>@if (string.IsNullOrEmpty(repo.OrgSlug)) {<span class="muted">-</span>} else {@repo.OrgSlug}</td>
-								<td><code class="id">@repo.LoreId</code></td>
-							</tr>
-						}
+					@if (Model.Repos.Count == 0)
+					{
+						<tr class="empty">
+							<td colspan="3">No repositories yet.</td>
+						</tr>
+					}
+					@foreach (var repo in Model.Repos)
+					{
+						<tr>
+							<td><b>@repo.Name</b></td>
+							<td>@if (string.IsNullOrEmpty(repo.OrgSlug))
+								{
+									<span class="muted">-</span>
+								}
+								else
+								{
+									@repo.OrgSlug
+								}
+							</td>
+							<td><code class="id">@repo.LoreId</code></td>
+						</tr>
+					}
 					</tbody>
 				</table>
 			</div>
@@ -70,47 +108,68 @@
 		<div class="card-body">
 			<div class="table-wrap">
 				<table class="table">
-					<thead><tr><th>Username</th><th>Organization</th><th>Permissions</th><th></th></tr></thead>
+					<thead>
+					<tr>
+						<th>Username</th>
+						<th>Organization</th>
+						<th>Permissions</th>
+						<th></th>
+					</tr>
+					</thead>
 					<tbody>
-						@foreach (var user in Model.Users)
-						{
-							<tr>
-								<td><b>@user.Username</b>@if (user.IsAdmin) {<text> </text><span class="badge role">admin</span>}</td>
-								<td>@if (string.IsNullOrEmpty(user.OrgSlug)) {<span class="muted">-</span>} else {@user.OrgSlug}</td>
-								<td>
-									@if (user.IsAdmin)
-									{
-										<div class="tags"><span class="tag">all repositories <span class="scope">urc-*</span></span></div>
-									}
-									else if (!Model.Perms[user.Id].Any())
-									{
-										<span class="muted">none</span>
-									}
-									else
-									{
-										<div class="tags">
-											@foreach (var perm in Model.Perms[user.Id])
-											{
-												<span class="tag">@Model.RepoName(perm.RepoLoreId) <span class="scope">@perm.Perms</span></span>
-											}
-										</div>
-									}
-								</td>
-								<td class="actions">
-									<form method="post" asp-page-handler="DeleteUser" onsubmit="return confirm('Delete @user.Username?')">
-										<input type="hidden" name="id" value="@user.Id" />
-										<button class="btn danger sm" type="submit">Delete</button>
-									</form>
-								</td>
-							</tr>
-						}
+					@foreach (var user in Model.Users)
+					{
+						<tr>
+							<td><b>@user.Username</b>
+								@if (user.IsAdmin)
+								{
+									<text> </text>
+									<span class="badge role">admin</span>
+								}
+							</td>
+							<td>@if (string.IsNullOrEmpty(user.OrgSlug))
+								{
+									<span class="muted">-</span>
+								}
+								else
+								{
+									@user.OrgSlug
+								}
+							</td>
+							<td>
+								@if (user.IsAdmin)
+								{
+									<div class="tags"><span class="tag">all repositories <span class="scope">urc-*</span></span></div>
+								}
+								else if (!Model.Perms[user.Id].Any())
+								{
+									<span class="muted">none</span>
+								}
+								else
+								{
+									<div class="tags">
+										@foreach (var perm in Model.Perms[user.Id])
+										{
+											<span class="tag">@Model.RepoName(perm.RepoLoreId) <span class="scope">@perm.Perms</span></span>
+										}
+									</div>
+								}
+							</td>
+							<td class="actions">
+								<form method="post" asp-page-handler="DeleteUser" onsubmit="return confirm('Delete @user.Username?')">
+									<input type="hidden" name="id" value="@user.Id"/>
+									<button class="btn danger sm" type="submit">Delete</button>
+								</form>
+							</td>
+						</tr>
+					}
 					</tbody>
 				</table>
 			</div>
 		</div>
 		<form class="card-foot form-grid" method="post" asp-page-handler="User">
-			<div class="field"><label>Username</label><input name="username" required /></div>
-			<div class="field"><label>Password</label><input name="password" type="password" required /></div>
+			<div class="field"><label>Username</label><input name="username" required/></div>
+			<div class="field"><label>Password</label><input name="password" type="password" required/></div>
 			<div class="field">
 				<label>Organization</label>
 				<select name="orgId">
@@ -121,8 +180,10 @@
 					}
 				</select>
 			</div>
-			<div class="field check"><input type="checkbox" id="isAdmin" name="isAdmin" value="1" /><label for="isAdmin" class="label-inline">Admin</label></div>
-			<div class="field-actions"><button class="btn" type="submit">Create user</button></div>
+			<div class="field check"><input type="checkbox" id="isAdmin" name="isAdmin" value="1"/><label for="isAdmin" class="label-inline">Admin</label></div>
+			<div class="field-actions">
+				<button class="btn" type="submit">Create user</button>
+			</div>
 		</form>
 	</section>
 
@@ -140,7 +201,7 @@
 				@foreach (var user in members)
 				{
 					<form class="perm-row" method="post" asp-page-handler="Perm">
-						<input type="hidden" name="userId" value="@user.Id" />
+						<input type="hidden" name="userId" value="@user.Id"/>
 						<div class="who">@user.Username</div>
 						<select name="repo">
 							@foreach (var repo in Model.Repos)
@@ -151,7 +212,7 @@
 						<div class="perm-checks">
 							@foreach (var p in Model.AllPerms)
 							{
-								<label><input type="checkbox" name="perm" value="@p" />@p</label>
+								<label><input type="checkbox" name="perm" value="@p"/>@p</label>
 							}
 						</div>
 						<button class="btn sm" type="submit">Grant / update</button>
@@ -159,6 +220,62 @@
 				}
 			}
 		</div>
+	</section>
+
+	<section class="card">
+		<div class="card-head"><h2>API Tokens</h2></div>
+		<div class="card-body">
+			<p class="hint">Non-interactive credentials for headless clients (Horde, CI). </p>
+			<div class="table-wrap">
+				<table class="table">
+					<thead>
+					<tr>
+						<th>User</th>
+						<th>Name</th>
+						<th>Created</th>
+						<th></th>
+					</tr>
+					</thead>
+					<tbody>
+					@if (Model.ApiKeys.Count == 0)
+					{
+						<tr class="empty">
+							<td colspan="4">No API tokens yet.</td>
+						</tr>
+					}
+					@foreach (var key in Model.ApiKeys)
+					{
+						<tr>
+							<td><b>@key.Username</b></td>
+							<td>@key.Name</td>
+							<td class="muted">@key.Created</td>
+							<td class="actions">
+								<form method="post" asp-page-handler="DeleteToken" onsubmit="return confirm('Revoke this token?')">
+									<input type="hidden" name="id" value="@key.Id"/>
+									<button class="btn danger sm" type="submit">Revoke</button>
+								</form>
+							</td>
+						</tr>
+					}
+					</tbody>
+				</table>
+			</div>
+		</div>
+		<form class="card-foot form-grid" method="post" asp-page-handler="CreateToken">
+			<div class="field">
+				<label>User</label>
+				<select name="userId" required>
+					@foreach (var user in Model.Users)
+					{
+						<option value="@user.Id">@user.Username</option>
+					}
+				</select>
+			</div>
+			<div class="field"><label>Token name</label><input name="name" placeholder="horde-ci"/></div>
+			<div class="field-actions">
+				<button class="btn" type="submit">Generate token</button>
+			</div>
+		</form>
 	</section>
 
 </main>

@@ -24,6 +24,11 @@ namespace LoreBackend.Pages
 		public List<User> Users { get; private set; } = new List<User>();
 		public List<Repo> Repos { get; private set; } = new List<Repo>();
 		public Dictionary<long, List<Perm>> Perms { get; private set; } = new Dictionary<long, List<Perm>>();
+		public List<ApiKey> ApiKeys { get; private set; } = new List<ApiKey>();
+
+		// Carries a freshly generated API token to the redirected page so it can be shown once.
+		[TempData]
+		public string? NewApiKey { get; set; }
 
 		public IReadOnlyList<string> AllPerms => LoreStore.AllPerms;
 		public IEnumerable<User> Members => Users.Where(u => !u.IsAdmin);
@@ -84,12 +89,35 @@ namespace LoreBackend.Pages
 			return RedirectToPage();
 		}
 
+		public IActionResult OnPostCreateToken(long userId, string? name)
+		{
+			IActionResult? denied = RequireAdmin();
+			if (denied != null)
+			{
+				return denied;
+			}
+			NewApiKey = _store.CreateApiKey(userId, string.IsNullOrWhiteSpace(name) ? "token" : name.Trim());
+			return RedirectToPage();
+		}
+
+		public IActionResult OnPostDeleteToken(long id)
+		{
+			IActionResult? denied = RequireAdmin();
+			if (denied != null)
+			{
+				return denied;
+			}
+			_store.DeleteApiKey(id);
+			return RedirectToPage();
+		}
+
 		void Load()
 		{
 			Orgs = _store.ListOrgs();
 			Users = _store.ListUsers();
 			Repos = _store.ListRepos();
 			Perms = Users.ToDictionary(u => u.Id, u => _store.GetPerms(u.Id));
+			ApiKeys = _store.ListApiKeys();
 		}
 
 		IActionResult? RequireAdmin()

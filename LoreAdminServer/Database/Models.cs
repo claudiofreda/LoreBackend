@@ -10,5 +10,7 @@ namespace LoreBackend.Database
 
     public record Perm(long UserId, string RepoLoreId, string Perms);
 
+    public record ApiKey(long Id, long UserId, string Name, string Created, string Username);
+
     public record ResourceGrant(string ResourceId, string[] Permission);
 }

@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Text;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Options;
 using LoreBackend.Server;
@@ -46,6 +47,13 @@ CREATE TABLE IF NOT EXISTS perms (
   repo_lore_id TEXT NOT NULL,
   perms        TEXT NOT NULL,
   PRIMARY KEY (user_id, repo_lore_id)
+);
+CREATE TABLE IF NOT EXISTS api_keys (
+  id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name     TEXT NOT NULL,
+  key_hash TEXT UNIQUE NOT NULL,
+  created  TEXT NOT NULL DEFAULT (datetime('now'))
 );");
         }
 
@@ -267,6 +275,48 @@ CREATE TABLE IF NOT EXISTS perms (
                 command.ExecuteNonQuery();
             }
         }
+
+        // ---- api keys (non-interactive login) ----
+        public string CreateApiKey(long userId, string name)
+        {
+            string key = "lore_" + Base64Url(RandomNumberGenerator.GetBytes(32));
+            using SqliteConnection connection = Open();
+            using SqliteCommand command = Cmd(connection, "INSERT INTO api_keys (user_id, name, key_hash) VALUES ($u, $n, $h)", ("$u", userId), ("$n", name), ("$h", Sha256Hex(key)));
+            command.ExecuteNonQuery();
+            return key;
+        }
+
+        public List<ApiKey> ListApiKeys()
+        {
+            using SqliteConnection connection = Open();
+            using SqliteCommand command = Cmd(connection, "SELECT a.id, a.user_id, a.name, a.created, u.username FROM api_keys a JOIN users u ON u.id = a.user_id ORDER BY u.username, a.created");
+            using SqliteDataReader reader = command.ExecuteReader();
+            List<ApiKey> result = new List<ApiKey>();
+            while (reader.Read())
+            {
+                result.Add(new ApiKey(reader.GetInt64(0), reader.GetInt64(1), reader.GetString(2), reader.GetString(3), reader.GetString(4)));
+            }
+
+            return result;
+        }
+
+        public void DeleteApiKey(long id)
+        {
+            using SqliteConnection connection = Open();
+            using SqliteCommand command = Cmd(connection, "DELETE FROM api_keys WHERE id = $id", ("$id", id));
+            command.ExecuteNonQuery();
+        }
+
+        public User? GetUserByApiKey(string rawKey)
+        {
+            using SqliteConnection connection = Open();
+            using SqliteCommand command = Cmd(connection, "SELECT u.id, u.username, u.password_hash, u.org_id, u.is_admin, o.slug FROM users u JOIN api_keys a ON a.user_id = u.id LEFT JOIN orgs o ON o.id = u.org_id WHERE a.key_hash = $h", ("$h", Sha256Hex(rawKey)));
+            using SqliteDataReader reader = command.ExecuteReader();
+            return reader.Read() ? ReadUser(reader) : null;
+        }
+
+        static string Sha256Hex(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
+        static string Base64Url(byte[] bytes) => Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 
         // JWT `resources` claim / permission checks: admins get the urc-* wildcard, others their grants.
         public List<ResourceGrant> ResourcesForUser(User user)
