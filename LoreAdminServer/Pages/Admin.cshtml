@@ -192,7 +192,7 @@
 							{
 								<tr>
 									<td><b>@user.Username</b>@if (user.IsAdmin) {<text> </text><span class="badge role">admin</span>}</td>
-									<td>@if (string.IsNullOrEmpty(user.OrgSlug)) {<span class="muted">-</span>} else {@user.OrgSlug}</td>
+									<td>@if (user.Orgs.Count == 0) {<span class="muted">-</span>} else {@string.Join(", ", user.Orgs.Select(o => o.Slug))}</td>
 									<td>
 										@if (user.IsAdmin)
 										{
@@ -228,18 +228,46 @@
 				<div class="field"><label>Username</label><input name="username" required /></div>
 				<div class="field"><label>Password</label><input name="password" type="password" required /></div>
 				<div class="field">
-					<label>Organization</label>
-					<select name="orgId">
-						<option value="">(no organization)</option>
+					<label>Organizations</label>
+					<div class="perm-checks">
 						@foreach (var org in Model.Orgs)
 						{
-							<option value="@org.Id">@org.Slug</option>
+							<label><input type="checkbox" name="orgIds" value="@org.Id" />@org.Slug</label>
 						}
-					</select>
+					</div>
 				</div>
 				<div class="field check"><input type="checkbox" id="isAdmin" name="isAdmin" value="1" /><label for="isAdmin" class="label-inline">Admin</label></div>
 				<div class="field-actions"><button class="btn" type="submit">Create user</button></div>
 			</form>
+		</section>
+
+		<section class="card">
+			<div class="card-head"><h2>Organization membership</h2></div>
+			<div class="card-body">
+				@{ var orgMembers = Model.Members.ToList(); }
+				@if (orgMembers.Count == 0 || Model.Orgs.Count == 0)
+				{
+					<p class="hint">Add a non-admin user and an organization to manage membership.</p>
+				}
+				else
+				{
+					<p class="hint">Set which organizations a user belongs to. Submitting with no boxes checked removes them from all.</p>
+					@foreach (var user in orgMembers)
+					{
+						<form class="perm-row" method="post" asp-page-handler="UserOrgs">
+							<input type="hidden" name="userId" value="@user.Id" />
+							<div class="who">@user.Username</div>
+							<div class="perm-checks">
+								@foreach (var org in Model.Orgs)
+								{
+									<label><input type="checkbox" name="orgIds" value="@org.Id" @(user.Orgs.Any(o => o.Id == org.Id) ? "checked" : "") />@org.Slug</label>
+								}
+							</div>
+							<button class="btn sm" type="submit">Save</button>
+						</form>
+					}
+				}
+			</div>
 		</section>
 
 		<section class="card">

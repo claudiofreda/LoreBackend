@@ -48,16 +48,16 @@ namespace LoreBackend.Auth
                 return new CreateResourceResponse();
             }
 
-            // Any user in an org may create, but only under their own org; the creator becomes owner.
-            if (user.OrgId == null)
+            // Any user in an org may create, but only under one of their own orgs; creator becomes owner.
+            if (user.Orgs.Count == 0)
             {
                 throw new RpcException(new Status(StatusCode.PermissionDenied, "user is not a member of any organization"));
             }
 
-            Org org = _store.GetOrg(user.OrgId.Value)!;
-            if (orgSlug != org.Slug)
+            Org? org = user.Orgs.FirstOrDefault(o => o.Slug == orgSlug);
+            if (org == null)
             {
-                throw new RpcException(new Status(StatusCode.PermissionDenied, $"repository must be created under your organization '{org.Slug}'"));
+                throw new RpcException(new Status(StatusCode.PermissionDenied, $"repository must be created under one of your organizations: {string.Join(", ", user.Orgs.Select(o => o.Slug))}"));
             }
 
             _store.UpsertRepo(loreId, org.Id, repoSlug, name);

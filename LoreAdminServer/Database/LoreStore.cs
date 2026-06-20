@@ -60,6 +60,11 @@ CREATE TABLE IF NOT EXISTS identities (
   preferred_username TEXT,
   claims_json        TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS user_orgs (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  org_id  INTEGER NOT NULL REFERENCES orgs(id)  ON DELETE CASCADE,
+  PRIMARY KEY (user_id, org_id)
+);
 CREATE TABLE IF NOT EXISTS api_keys (
   id       INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -67,6 +72,12 @@ CREATE TABLE IF NOT EXISTS api_keys (
   key_hash TEXT UNIQUE NOT NULL,
   created  TEXT NOT NULL DEFAULT (datetime('now'))
 );");
+
+            // Migrate legacy single-org assignments (users.org_id) into the join table, then clear
+            // the legacy column so user_orgs is the sole source of truth (otherwise this would
+            // re-add an org you later removed, on every restart).
+            Exec(connection, "INSERT OR IGNORE INTO user_orgs (user_id, org_id) SELECT id, org_id FROM users WHERE org_id IS NOT NULL");
+            Exec(connection, "UPDATE users SET org_id = NULL WHERE org_id IS NOT NULL");
         }
 
         SqliteConnection Open()
@@ -163,12 +174,19 @@ CREATE TABLE IF NOT EXISTS api_keys (
         public List<User> ListUsers()
         {
             using SqliteConnection connection = Open();
-            using SqliteCommand command = Cmd(connection, "SELECT u.id, u.username, u.password_hash, u.org_id, u.is_admin, o.slug FROM users u LEFT JOIN orgs o ON o.id = u.org_id ORDER BY u.username");
-            using SqliteDataReader reader = command.ExecuteReader();
             List<User> result = new List<User>();
-            while (reader.Read())
+            using (SqliteCommand command = Cmd(connection, "SELECT id, username, password_hash, is_admin FROM users ORDER BY username"))
+            using (SqliteDataReader reader = command.ExecuteReader())
             {
-                result.Add(ReadUser(reader));
+                while (reader.Read())
+                {
+                    result.Add(ReadUser(reader));
+                }
+            }
+
+            foreach (User user in result)
+            {
+                user.Orgs = ReadUserOrgs(connection, user.Id);
             }
 
             return result;
@@ -177,19 +195,34 @@ CREATE TABLE IF NOT EXISTS api_keys (
         public User? GetUser(string username)
         {
             using SqliteConnection connection = Open();
-            using SqliteCommand command = Cmd(connection, "SELECT u.id, u.username, u.password_hash, u.org_id, u.is_admin, o.slug FROM users u LEFT JOIN orgs o ON o.id = u.org_id WHERE u.username = $u", ("$u", username));
-            using SqliteDataReader reader = command.ExecuteReader();
-            return reader.Read() ? ReadUser(reader) : null;
+            User? user = null;
+            using (SqliteCommand command = Cmd(connection, "SELECT id, username, password_hash, is_admin FROM users WHERE username = $u", ("$u", username)))
+            using (SqliteDataReader reader = command.ExecuteReader())
+            {
+                if (reader.Read())
+                {
+                    user = ReadUser(reader);
+                }
+            }
+
+            if (user != null)
+            {
+                user.Orgs = ReadUserOrgs(connection, user.Id);
+            }
+
+            return user;
         }
 
-        public User CreateUser(string username, string password, long? orgId, bool isAdmin)
+        public User CreateUser(string username, string password, IEnumerable<long> orgIds, bool isAdmin)
         {
-            using SqliteConnection connection = Open();
-            using (SqliteCommand command = Cmd(connection, "INSERT INTO users (username, password_hash, org_id, is_admin) VALUES ($u, $p, $o, $a)", ("$u", username), ("$p", HashPassword(password)), ("$o", orgId), ("$a", isAdmin ? 1 : 0)))
+            using (SqliteConnection connection = Open())
+            using (SqliteCommand command = Cmd(connection, "INSERT INTO users (username, password_hash, is_admin) VALUES ($u, $p, $a)", ("$u", username), ("$p", HashPassword(password)), ("$a", isAdmin ? 1 : 0)))
             {
                 command.ExecuteNonQuery();
             }
 
+            User user = GetUser(username)!;
+            SetUserOrgs(user.Id, orgIds);
             return GetUser(username)!;
         }
 
@@ -200,15 +233,48 @@ CREATE TABLE IF NOT EXISTS api_keys (
             command.ExecuteNonQuery();
         }
 
+        // ---- user <-> org membership ----
+        public List<Org> GetUserOrgs(long userId)
+        {
+            using SqliteConnection connection = Open();
+            return ReadUserOrgs(connection, userId);
+        }
+
+        public void SetUserOrgs(long userId, IEnumerable<long> orgIds)
+        {
+            using SqliteConnection connection = Open();
+            using (SqliteCommand delete = Cmd(connection, "DELETE FROM user_orgs WHERE user_id = $u", ("$u", userId)))
+            {
+                delete.ExecuteNonQuery();
+            }
+
+            foreach (long orgId in orgIds.Distinct())
+            {
+                using SqliteCommand insert = Cmd(connection, "INSERT OR IGNORE INTO user_orgs (user_id, org_id) VALUES ($u, $o)", ("$u", userId), ("$o", orgId));
+                insert.ExecuteNonQuery();
+            }
+        }
+
+        static List<Org> ReadUserOrgs(SqliteConnection connection, long userId)
+        {
+            using SqliteCommand command = Cmd(connection, "SELECT o.id, o.slug, o.name FROM user_orgs uo JOIN orgs o ON o.id = uo.org_id WHERE uo.user_id = $u ORDER BY o.slug", ("$u", userId));
+            using SqliteDataReader reader = command.ExecuteReader();
+            List<Org> orgs = new List<Org>();
+            while (reader.Read())
+            {
+                orgs.Add(new Org(reader.GetInt64(0), reader.GetString(1), reader.GetString(2)));
+            }
+
+            return orgs;
+        }
+
         static User ReadUser(SqliteDataReader reader)
         {
             return new User(
                 reader.GetInt64(0),
                 reader.GetString(1),
                 reader.GetString(2),
-                reader.IsDBNull(3) ? null : reader.GetInt64(3),
-                reader.GetInt64(4) != 0,
-                reader.IsDBNull(5) ? null : reader.GetString(5));
+                reader.GetInt64(3) != 0);
         }
 
         // ---- repos ----
@@ -289,9 +355,6 @@ CREATE TABLE IF NOT EXISTS api_keys (
         }
 
         // ---- OIDC identities ----
-
-        // Ensures an OIDC-authenticated user exists in the users table (for the admin UI and
-        // the IsAdmin escape hatch). OIDC users carry no password.
         public User UpsertOidcUser(string username)
         {
             using SqliteConnection connection = Open();
@@ -390,12 +453,27 @@ CREATE TABLE IF NOT EXISTS api_keys (
             command.ExecuteNonQuery();
         }
 
+        // Resolve a user by a raw API key (hashed and matched against api_keys). Uses the same
+        // 4-column user shape as GetUser and loads org memberships separately.
         public User? GetUserByApiKey(string rawKey)
         {
             using SqliteConnection connection = Open();
-            using SqliteCommand command = Cmd(connection, "SELECT u.id, u.username, u.password_hash, u.org_id, u.is_admin, o.slug FROM users u JOIN api_keys a ON a.user_id = u.id LEFT JOIN orgs o ON o.id = u.org_id WHERE a.key_hash = $h", ("$h", Sha256Hex(rawKey)));
-            using SqliteDataReader reader = command.ExecuteReader();
-            return reader.Read() ? ReadUser(reader) : null;
+            User? user = null;
+            using (SqliteCommand command = Cmd(connection, "SELECT u.id, u.username, u.password_hash, u.is_admin FROM users u JOIN api_keys a ON a.user_id = u.id WHERE a.key_hash = $h", ("$h", Sha256Hex(rawKey))))
+            using (SqliteDataReader reader = command.ExecuteReader())
+            {
+                if (reader.Read())
+                {
+                    user = ReadUser(reader);
+                }
+            }
+
+            if (user != null)
+            {
+                user.Orgs = ReadUserOrgs(connection, user.Id);
+            }
+
+            return user;
         }
 
         static string Sha256Hex(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
@@ -463,7 +541,7 @@ CREATE TABLE IF NOT EXISTS api_keys (
             if (ListUsers().Count == 0)
             {
                 Org org = GetOrgBySlug("epic") ?? CreateOrg("epic", "Epic");
-                CreateUser("admin", "admin", org.Id, true);
+                CreateUser("admin", "admin", new[] { org.Id }, true);
             }
         }
     }

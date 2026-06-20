@@ -82,14 +82,25 @@ namespace LoreBackend.Pages
 			return RedirectToPage();
 		}
 
-		public IActionResult OnPostUser(string username, string password, long? orgId, string? isAdmin)
+		public IActionResult OnPostUser(string username, string password, long[]? orgIds, string? isAdmin)
 		{
 			IActionResult? guard = RequireEditable();
 			if (guard != null)
 			{
 				return guard;
 			}
-			_store.CreateUser(username, password, orgId, isAdmin == "1");
+			_store.CreateUser(username, password, orgIds ?? Array.Empty<long>(), isAdmin == "1");
+			return RedirectToPage();
+		}
+
+		public IActionResult OnPostUserOrgs(long userId, long[]? orgIds)
+		{
+			IActionResult? guard = RequireEditable();
+			if (guard != null)
+			{
+				return guard;
+			}
+			_store.SetUserOrgs(userId, orgIds ?? Array.Empty<long>());
 			return RedirectToPage();
 		}
 
