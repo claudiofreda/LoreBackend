@@ -64,16 +64,6 @@ if (oidcEnabled)
         }
 
         options.TokenValidationParameters.NameClaimType = startupOptions.Oidc.NameClaim;
-
-        // Always force re-authentication at the IdP so group/role claims are current on every login.
-        options.Events = new OpenIdConnectEvents
-        {
-            OnRedirectToIdentityProvider = redirectContext =>
-            {
-                redirectContext.ProtocolMessage.Prompt = "login";
-                return System.Threading.Tasks.Task.CompletedTask;
-            },
-        };
     });
 }
 
