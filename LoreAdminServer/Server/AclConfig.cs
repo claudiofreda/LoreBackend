@@ -18,7 +18,6 @@ namespace LoreBackend.Server
         public List<string> Profiles { get; set; } = new List<string>();
         public List<string> Actions { get; set; } = new List<string>();
 
-        // Lore resource the granted actions apply to: "urc-*" (everything) or "urc-<repo-id>".
         // Resource(s) the granted actions apply to: "urc-*" (all repos) or "urc-<repo-id>".
         // Use "Resources" for several; "Resource" is the single-value shorthand. When neither is
         // set the grant defaults to "urc-*".
@@ -37,6 +36,10 @@ namespace LoreBackend.Server
 
             return list.Count > 0 ? list.Distinct() : new[] { "urc-*" };
         }
+
+        // Organizations granted to claim-holders (OIDC only - parallel to Resources). "*" means all orgs; otherwise a list of org slugs.
+        // Empty grants no org membership. Not stored in the DB - org checks resolve against the ACL at request time.
+        public List<string> Orgs { get; set; } = new List<string>();
     }
 
     // A named, reusable bundle of actions. ComputedActions = union(extends) + actions - excludeActions.

@@ -62,6 +62,27 @@ namespace LoreBackend.Auth
                 .ToList();
         }
 
+        // Resolve the set of org slugs granted to the claim-holder. May contain "*" (= all orgs).
+        public HashSet<string> ResolveOrgs(IEnumerable<KeyValuePair<string, string>> claims)
+        {
+            List<KeyValuePair<string, string>> claimList = claims.ToList();
+            HashSet<string> orgs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (AclEntry entry in _acl.Entries)
+            {
+                if (!HasClaim(claimList, entry.Claim))
+                {
+                    continue;
+                }
+
+                foreach (string org in entry.Orgs)
+                {
+                    orgs.Add(org);
+                }
+            }
+
+            return orgs;
+        }
+
         // Type comparison is case-insensitive, value exact - matching Horde's ClaimsPrincipal.HasClaim.
         static bool HasClaim(List<KeyValuePair<string, string>> claims, AclClaim claim)
         {

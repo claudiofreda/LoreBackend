@@ -501,6 +501,40 @@ CREATE TABLE IF NOT EXISTS api_keys (
                 string.Equals(c.Value, admin.Value, StringComparison.Ordinal));
         }
 
+        // Whether a user belongs to an org (by slug). OIDC users resolve against the ACL
+        // ("*" = all orgs); local users use their DB memberships (user_orgs).
+        public bool IsInOrg(User user, string orgSlug)
+        {
+            OidcIdentity? identity = GetIdentity(user.Username);
+            if (identity != null)
+            {
+                HashSet<string> orgs = _acl.ResolveOrgs(identity.Claims);
+                return orgs.Contains("*") || orgs.Contains(orgSlug);
+            }
+
+            return user.Orgs.Any(o => string.Equals(o.Slug, orgSlug, StringComparison.OrdinalIgnoreCase));
+        }
+
+        // The user's org slugs (for display / "all orgs" checks). Local: DB memberships. OIDC: ACL-resolved slugs, with "*" expanded
+        // to every known org (or kept as "*" if none defined).
+        public List<string> UserOrgSlugs(User user)
+        {
+            OidcIdentity? identity = GetIdentity(user.Username);
+            if (identity == null)
+            {
+                return user.Orgs.Select(o => o.Slug).ToList();
+            }
+
+            HashSet<string> orgs = _acl.ResolveOrgs(identity.Claims);
+            if (!orgs.Contains("*"))
+            {
+                return orgs.ToList();
+            }
+
+            List<string> all = ListOrgs().Select(o => o.Slug).ToList();
+            return all.Count > 0 ? all : new List<string> { "*" };
+        }
+
         // JWT `resources` claim / permission checks. Resolution order:
         //   admins -> urc-* wildcard; OIDC identities -> ACL rules over their claims;
         //   legacy local users -> their manually-assigned perms.

@@ -48,19 +48,20 @@ namespace LoreBackend.Auth
                 return new CreateResourceResponse();
             }
 
-            // Any user in an org may create, but only under one of their own orgs; creator becomes owner.
-            if (user.Orgs.Count == 0)
+            // Non-admin: may create under an org they belong to. Membership comes from DB orgs (local users) or the ACL (OIDC users) via IsInOrg.
+            // The repo name must be prefixed with the org (org/repo). The creator becomes owner on local repos.
+            if (orgSlug == null)
             {
-                throw new RpcException(new Status(StatusCode.PermissionDenied, "user is not a member of any organization"));
+                throw new RpcException(new Status(StatusCode.PermissionDenied, "repository name must be prefixed with an organization (org/repo)"));
             }
 
-            Org? org = user.Orgs.FirstOrDefault(o => o.Slug == orgSlug);
-            if (org == null)
+            if (!_store.IsInOrg(user, orgSlug))
             {
-                throw new RpcException(new Status(StatusCode.PermissionDenied, $"repository must be created under one of your organizations: {string.Join(", ", user.Orgs.Select(o => o.Slug))}"));
+                throw new RpcException(new Status(StatusCode.PermissionDenied, $"not authorized to create repositories under organization '{orgSlug}'"));
             }
 
-            _store.UpsertRepo(loreId, org.Id, repoSlug, name);
+            Org? org = _store.GetOrgBySlug(orgSlug);
+            _store.UpsertRepo(loreId, org?.Id, repoSlug, name);
             _store.SetPerm(user.Id, loreId, new[] { "admin" });
             return new CreateResourceResponse();
         }

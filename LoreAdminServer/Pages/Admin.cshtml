@@ -155,7 +155,7 @@
 				<h3>Entries</h3>
 				<div class="table-wrap">
 					<table class="table">
-						<thead><tr><th>Claim</th><th>Grants</th><th>Resource</th></tr></thead>
+						<thead><tr><th>Claim</th><th>Grants</th><th>Resource</th><th>Orgs</th></tr></thead>
 						<tbody>
 							@if (Model.Acl.Entries.Count == 0)
 							{
@@ -171,6 +171,7 @@
 										@if (e.Profiles.Count == 0 && e.Actions.Count == 0) {<span class="muted">-</span>}
 									</td>
 									<td><span class="scope">@string.Join(", ", e.ResourceList())</span></td>
+									<td>@(e.Orgs.Count > 0 ? string.Join(", ", e.Orgs) : "-")</td>
 								</tr>
 							}
 						</tbody>
