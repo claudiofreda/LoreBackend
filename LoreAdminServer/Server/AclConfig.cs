@@ -18,23 +18,14 @@ namespace LoreBackend.Server
         public List<string> Profiles { get; set; } = new List<string>();
         public List<string> Actions { get; set; } = new List<string>();
 
-        // Resource(s) the granted actions apply to: "urc-*" (all repos) or "urc-<repo-id>".
-        // Use "Resources" for several; "Resource" is the single-value shorthand. When neither is
-        // set the grant defaults to "urc-*".
-        public string? Resource { get; set; }
-
+        // Resources the granted actions apply to: "urc-*" (all repos) or "urc-<repo-id>". Least
+        // privilege: when empty, the entry grants no resources (list "urc-*" explicitly for all).
         public List<string> Resources { get; set; } = new List<string>();
 
-        // Combined, de-duplicated resource list, defaulting to the wildcard when none are set.
+        // De-duplicated resource list - empty when none are set (no resource grant).
         public IEnumerable<string> ResourceList()
         {
-            List<string> list = new List<string>(Resources);
-            if (!string.IsNullOrEmpty(Resource))
-            {
-                list.Add(Resource);
-            }
-
-            return list.Count > 0 ? list.Distinct() : new[] { "urc-*" };
+            return Resources.Distinct();
         }
 
         // Organizations granted to claim-holders (OIDC only - parallel to Resources). "*" means all orgs; otherwise a list of org slugs.
