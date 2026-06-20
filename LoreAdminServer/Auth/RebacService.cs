@@ -62,10 +62,7 @@ namespace LoreBackend.Auth
 
             Org? org = _store.GetOrgBySlug(orgSlug);
             _store.UpsertRepo(loreId, org?.Id, repoSlug, name);
-            // Creator gets access to their repo via a perms row. OIDC: read/write (surfaced by CreatedRepoGrants, gated on current org membership).
-            // Local: admin/owner (existing).
-            bool oidc = _store.GetIdentity(user.Username) != null;
-            _store.SetPerm(user.Id, loreId, oidc ? new[] { "read", "write" } : new[] { "admin" });
+            _store.SetPerm(user.Id, loreId, new[] { "admin" });
             return new CreateResourceResponse();
         }
 
