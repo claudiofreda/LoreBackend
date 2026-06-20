@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -72,8 +71,6 @@ namespace LoreBackend.Pages
 			_logger.LogInformation("oidc login as {User} ({Display}) - {Count} claims refreshed", username, display, claims.Count);
 			SignedInUser = display;
 
-			// Drop the shim cookie so the next `lore auth login` is a full dance too.
-			// await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
 			return Page();
 		}
 
