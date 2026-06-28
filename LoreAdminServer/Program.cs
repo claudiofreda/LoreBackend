@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
@@ -35,6 +36,16 @@ builder.Services.AddSingleton<TokenService>();
 builder.Services.AddSingleton<SessionStore>();
 builder.Services.AddGrpc();
 builder.Services.AddRazorPages();
+
+// Persist DataProtection keys to a stable, writable location next to the database. The runtime
+// image runs as a non-root user whose home (~/.aspnet/DataProtection-Keys) is not writable, so the
+// key ring would otherwise be ephemeral - which breaks the OIDC correlation/nonce cookies (they
+// can't be decrypted at the callback, surfacing as "Correlation failed"). Keep keys on the same
+// persisted volume as the DB so they survive restarts.
+string keyRingPath = Path.Combine(Path.GetDirectoryName(Resolve(startupOptions.DatabasePath))!, "dp-keys");
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(keyRingPath))
+    .SetApplicationName("LoreBackend");
 
 AuthenticationBuilder authentication = builder.Services.AddAuthentication(options =>
 {
