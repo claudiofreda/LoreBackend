@@ -63,6 +63,12 @@ if (oidcEnabled)
         options.ClientId = startupOptions.Oidc.ClientId;
         options.ClientSecret = startupOptions.Oidc.ClientSecret;
         options.ResponseType = "code";
+        // Default response mode is form_post, which makes the IdP send the callback as a cross-site
+        // POST. SameSite=Lax cookies (see below) are NOT sent on cross-site POSTs, only on top-level
+        // GET navigations - so over plain HTTP the correlation cookie wouldn't be attached and the
+        // callback fails with "Correlation failed". Using query mode makes the callback a GET redirect
+        // that Lax cookies follow. (On HTTPS this is unnecessary, but it's harmless there.)
+        options.ResponseMode = "query";
         options.CallbackPath = startupOptions.Oidc.CallbackPath;
         options.SaveTokens = true;
         // Keep raw inbound claim names (sub, groups, roles, ...) so ACL rules match what the IdP emits.
