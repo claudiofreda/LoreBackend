@@ -63,6 +63,16 @@ if (oidcEnabled)
             options.Scope.Add(scope);
         }
 
+        // The correlation/nonce cookies default to SameSite=None, which the browser only keeps
+        // when also marked Secure (i.e. over HTTPS). When the dashboard is served over plain HTTP
+        // (e.g. on a LAN) those cookies get dropped and the OIDC callback fails with "Correlation
+        // failed". The code flow's callback is a top-level GET redirect, so SameSite=Lax is enough,
+        // and SameAsRequest lets the cookie work over HTTP while still going Secure over HTTPS.
+        options.CorrelationCookie.SameSite = SameSiteMode.Lax;
+        options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        options.NonceCookie.SameSite = SameSiteMode.Lax;
+        options.NonceCookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+
         options.TokenValidationParameters.NameClaimType = startupOptions.Oidc.NameClaim;
     });
 }
